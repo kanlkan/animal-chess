@@ -6,11 +6,13 @@ include Fox
 
 class MainWindow < FXMainWindow
   GREEN = FXRGB(0,  255,  0)
+  RED   = FXRGB(255,  0,  0)
+  BLUE  = FXRGB(0,    0,255)
   WHITE = FXRGB(255,255,255)
   GRAY  = FXRGB(128,128,128)
 
   def initialize(app)
-    super(app, "Animal Chess", :opts => DECOR_ALL, :width => 480, :height => 490)
+    super(app, "Animal Chess", :opts => DECOR_ALL, :width => 840, :height => 490)
     @piece_lion     = load_icon("lion.png") 
     @piece_giraffe  = load_icon("giraffe.png") 
     @piece_elephant = load_icon("elephant.png") 
@@ -26,21 +28,85 @@ class MainWindow < FXMainWindow
                @piece_cock, @piece_chick, @piece_lion_inv, @piece_giraffe_inv, \
                @piece_elephant_inv, @piece_cock_inv, @piece_chick_inv]
     @grabbed_piece = nil
-
+    @grabbed_rs_piece = nil
+    
+    # main_frame
     main_frame = FXHorizontalFrame.new(self, :opts => LAYOUT_FILL_Y| \
-                                        LAYOUT_FIX_WIDTH, :width => 280)
+                                       LAYOUT_SIDE_LEFT|LAYOUT_FIX_WIDTH,\
+                                       :width => 280)
     @main_table = FXTable.new(main_frame, :opts => LAYOUT_FILL|TABLE_READONLY)
     @main_table.defColumnWidth = 90
     @main_table.defRowHeight = 120
     @main_table.setTableSize(4,3)
-    # hide table header row and col
+    ## hide table header row and col
     @main_table.rowHeaderMode = LAYOUT_FIX_WIDTH
     @main_table.rowHeaderWidth = 0
     @main_table.columnHeaderMode = LAYOUT_FIX_HEIGHT
     @main_table.columnHeaderHeight = 0
-    # event
+    ## event
     @main_table.connect(SEL_COMMAND, method(:on_cell_click))
-    # init place
+
+    # sub_frame
+    sub_frame = FXVerticalFrame.new(self, :opts => LAYOUT_FIX_WIDTH| \
+                                    LAYOUT_FIX_HEIGHT|LAYOUT_SIDE_RIGHT, \
+                                    :x => 280, :y => 0, \
+                                    :width => 555, :height => 480)
+    sub_box = FXMatrix.new(sub_frame, 3, MATRIX_BY_ROWS|LAYOUT_FILL)
+    # sub_frame_btm
+    sub_frame_btm = FXHorizontalFrame.new(sub_box, :opts => LAYOUT_FIX_WIDTH| \
+                                          LAYOUT_FIX_HEIGHT|LAYOUT_SIDE_RIGHT| \
+                                          LAYOUT_SIDE_BOTTOM, \
+                                          :width => 555, :height => 130)
+    @reserve1_table = FXTable.new(sub_frame_btm, \
+                                  :opts => LAYOUT_FILL|TABLE_READONLY)
+    @reserve1_table.defColumnWidth = 90
+    @reserve1_table.defRowHeight = 120
+    @reserve1_table.setTableSize(1,6)
+    ## hide table header row and col
+    @reserve1_table.rowHeaderMode = LAYOUT_FIX_WIDTH
+    @reserve1_table.rowHeaderWidth = 0
+    @reserve1_table.columnHeaderMode = LAYOUT_FIX_HEIGHT
+    @reserve1_table.columnHeaderHeight = 0
+
+    # sub_fame_mid
+    sub_frame_mid = FXHorizontalFrame.new(sub_box, :opts => LAYOUT_FIX_WIDTH| \
+                                          LAYOUT_FIX_HEIGHT, \
+                                          :width => 555, :height => 200)
+    
+    @start_btn = FXButton.new(sub_frame_mid, "Game Start", :opts => FRAME_RAISED| \
+                              LAYOUT_CENTER_Y|LAYOUT_FIX_WIDTH|LAYOUT_FIX_HEIGHT, \
+                              :width => 100, :height => 120)
+    @start_btn.connect(SEL_COMMAND, method(:on_start_btn_click))
+    
+    group = FXGroupBox.new(sub_frame_mid, "Game Mode", GROUPBOX_TITLE_CENTER| \
+                           LAYOUT_CENTER_Y|LAYOUT_FIX_WIDTH|LAYOUT_FIX_HEIGHT,\
+                           :width => 120, :height => 120)
+    @group_dt = FXDataTarget.new(3)
+    @group_dt.connect(SEL_COMMAND) do
+    end
+    FXRadioButton.new(group, "Man vs Man", @group_dt, FXDataTarget::ID_OPTION)
+    FXRadioButton.new(group, "Man vs Comp", @group_dt, FXDataTarget::ID_OPTION+1)
+    FXRadioButton.new(group, "Comp vs Man", @group_dt, FXDataTarget::ID_OPTION+2)
+    FXRadioButton.new(group, "Comp vs Comp", @group_dt, FXDataTarget::ID_OPTION+3)
+    
+
+    # sub_frame_top
+    sub_frame_top = FXHorizontalFrame.new(sub_box, :opts => LAYOUT_FIX_WIDTH| \
+                                          LAYOUT_FIX_HEIGHT|LAYOUT_SIDE_RIGHT| \
+                                          LAYOUT_SIDE_TOP, \
+                                          :width => 555, :height => 130)
+    @reserve2_table = FXTable.new(sub_frame_top, \
+                                  :opts => LAYOUT_FILL|TABLE_READONLY)
+    @reserve2_table.defColumnWidth = 90
+    @reserve2_table.defRowHeight = 120
+    @reserve2_table.setTableSize(1,6)
+    ## hide table header row and col
+    @reserve2_table.rowHeaderMode = LAYOUT_FIX_WIDTH
+    @reserve2_table.rowHeaderWidth = 0
+    @reserve2_table.columnHeaderMode = LAYOUT_FIX_HEIGHT
+    @reserve2_table.columnHeaderHeight = 0
+
+    # init pieces place
     putPiece(0, 0, @piece_giraffe_inv)
     putPiece(0, 1, @piece_lion_inv)
     putPiece(0, 2, @piece_elephant_inv)
@@ -54,6 +120,10 @@ class MainWindow < FXMainWindow
 
   def putPiece(row, col, piece)
     @main_table.setItemIcon(row, col, piece)
+  end
+
+  def on_start_btn_click(sender, sel, event)
+    p "game start."
   end
 
   def on_cell_click(sender, sel, pos)
