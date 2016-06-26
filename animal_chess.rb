@@ -56,15 +56,6 @@ class MainWindow < FXMainWindow
     @main_table.setItemIcon(row, col, piece)
   end
 
-  def left_click
-    image = FXPNGImage.new(getApp(), nil)
-    FXFileStream.open("asset/temp.png", FXStreamLoad) do |stream|
-      image.loadPixels(stream)
-    end
-    image.create
-    @view.image = image
-  end
-
   def on_cell_click(sender, sel, pos)
     icon = @main_table.getItemIcon(pos.row, pos.col)
     if icon == nil
