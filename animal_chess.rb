@@ -1,18 +1,38 @@
 #!/usr/bin/env ruby
 # coding: utf-8
+#
+#  animal_chess.rb
+#
+#  Board Index
+#
+#    0 1 2 Col
+#  0
+#  1
+#  2
+#  3
+# Row
+#
 
 require 'fox16'
 include Fox
 
 class MainWindow < FXMainWindow
-  GREEN = FXRGB(0,  255,  0)
-  RED   = FXRGB(255,  0,  0)
-  BLUE  = FXRGB(0,    0,255)
-  WHITE = FXRGB(255,255,255)
-  GRAY  = FXRGB(128,128,128)
+
+  TITLE = "Animal Chess"
+  VERSION = " 0.9.0"
+  VEC_LION         = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]
+  VEC_LION_INV     = VEC_LION
+  VEC_GIRAFFE      = [[-1,0],[0,-1],[0,1],[1,0]]
+  VEC_GIRAFFE_INV  = VEC_GIRAFFE
+  VEC_ELEPHANT     = [[-1,-1],[-1,1],[1,-1],[1,1]]
+  VEC_ELEPHANT_INV = VEC_ELEPHANT
+  VEC_COCK         = [[-1,0],[-1,-1],[0,-1],[0,1],[1,0],[1,-1]]
+  VEC_COCK_INV     = [[-1,0],[-1,1],[0,-1],[0,1],[1,0],[1,1]]
+  VEC_CHICK        = [[-1,0]]
+  VEC_CHICK_INV    = [[1,0]]
 
   def initialize(app)
-    super(app, "Animal Chess", :opts => DECOR_ALL, :width => 840, :height => 490)
+    super(app, TITLE+VERSION, :opts => DECOR_ALL, :width => 840, :height => 490)
     @piece_lion     = load_icon("lion.png") 
     @piece_giraffe  = load_icon("giraffe.png") 
     @piece_elephant = load_icon("elephant.png") 
@@ -24,11 +44,15 @@ class MainWindow < FXMainWindow
     @piece_cock_inv     = load_icon("cock_inv.png") 
     @piece_chick_inv    = load_icon("chick_inv.png") 
 
-    @pieces = [@piece_lion, @piece_giraffe, @piece_elephant, \
-               @piece_cock, @piece_chick, @piece_lion_inv, @piece_giraffe_inv, \
-               @piece_elephant_inv, @piece_cock_inv, @piece_chick_inv]
+    @pieces_upright = [@piece_lion, @piece_giraffe, @piece_elephant, \
+                      @piece_cock, @piece_chick]
+    @pieces_inverse = [@piece_lion_inv, @piece_giraffe_inv, \
+                      @piece_elephant_inv, @piece_cock_inv, @piece_chick_inv]
+    @pieces = [@pieces_upright,  @pieces_inverse]
     @grabbed_piece = nil
-    @grabbed_rs_piece = nil
+    @grabbed_from = [nil, nil, nil] # [table, row, col]
+    @turn = {"first"=>0, "second"=>1}
+    @now_turn = @turn['first']
     
     # main_frame
     main_frame = FXHorizontalFrame.new(self, :opts => LAYOUT_FILL_Y| \
@@ -44,7 +68,7 @@ class MainWindow < FXMainWindow
     @main_table.columnHeaderMode = LAYOUT_FIX_HEIGHT
     @main_table.columnHeaderHeight = 0
     ## event
-    @main_table.connect(SEL_COMMAND, method(:on_cell_click))
+    @main_table.connect(SEL_COMMAND, method(:on_main_click))
 
     # sub_frame
     sub_frame = FXVerticalFrame.new(self, :opts => LAYOUT_FIX_WIDTH| \
@@ -52,23 +76,24 @@ class MainWindow < FXMainWindow
                                     :x => 280, :y => 0, \
                                     :width => 555, :height => 480)
     sub_box = FXMatrix.new(sub_frame, 3, MATRIX_BY_ROWS|LAYOUT_FILL)
-    # sub_frame_btm
-    sub_frame_btm = FXHorizontalFrame.new(sub_box, :opts => LAYOUT_FIX_WIDTH| \
-                                          LAYOUT_FIX_HEIGHT|LAYOUT_SIDE_RIGHT| \
-                                          LAYOUT_SIDE_BOTTOM, \
-                                          :width => 555, :height => 130)
-    @reserve1_table = FXTable.new(sub_frame_btm, \
-                                  :opts => LAYOUT_FILL|TABLE_READONLY)
-    @reserve1_table.defColumnWidth = 90
-    @reserve1_table.defRowHeight = 120
-    @reserve1_table.setTableSize(1,6)
-    ## hide table header row and col
-    @reserve1_table.rowHeaderMode = LAYOUT_FIX_WIDTH
-    @reserve1_table.rowHeaderWidth = 0
-    @reserve1_table.columnHeaderMode = LAYOUT_FIX_HEIGHT
-    @reserve1_table.columnHeaderHeight = 0
 
-    # sub_fame_mid
+    # sub_frame_top
+    sub_frame_top = FXHorizontalFrame.new(sub_box, :opts => LAYOUT_FIX_WIDTH| \
+                                          LAYOUT_FIX_HEIGHT|LAYOUT_SIDE_RIGHT, \
+                                          :width => 555, :height => 130)
+    @reserve2_table = FXTable.new(sub_frame_top, \
+                                  :opts => LAYOUT_FILL|TABLE_READONLY)
+    @reserve2_table.defColumnWidth = 90
+    @reserve2_table.defRowHeight = 120
+    @reserve2_table.setTableSize(1,6)
+    ## hide table header row and col
+    @reserve2_table.rowHeaderMode = LAYOUT_FIX_WIDTH
+    @reserve2_table.rowHeaderWidth = 0
+    @reserve2_table.columnHeaderMode = LAYOUT_FIX_HEIGHT
+    @reserve2_table.columnHeaderHeight = 0
+    @reserve2_table.connect(SEL_COMMAND, method(:on_reserve2_click))
+    
+   # sub_fame_mid
     sub_frame_mid = FXHorizontalFrame.new(sub_box, :opts => LAYOUT_FIX_WIDTH| \
                                           LAYOUT_FIX_HEIGHT, \
                                           :width => 555, :height => 200)
@@ -82,92 +107,270 @@ class MainWindow < FXMainWindow
                            LAYOUT_CENTER_Y|LAYOUT_FIX_WIDTH|LAYOUT_FIX_HEIGHT,\
                            :width => 120, :height => 120)
     @group_dt = FXDataTarget.new(3)
-    @group_dt.connect(SEL_COMMAND) do
-    end
     FXRadioButton.new(group, "Man vs Man", @group_dt, FXDataTarget::ID_OPTION)
     FXRadioButton.new(group, "Man vs Comp", @group_dt, FXDataTarget::ID_OPTION+1)
     FXRadioButton.new(group, "Comp vs Man", @group_dt, FXDataTarget::ID_OPTION+2)
     FXRadioButton.new(group, "Comp vs Comp", @group_dt, FXDataTarget::ID_OPTION+3)
-    
-
-    # sub_frame_top
-    sub_frame_top = FXHorizontalFrame.new(sub_box, :opts => LAYOUT_FIX_WIDTH| \
-                                          LAYOUT_FIX_HEIGHT|LAYOUT_SIDE_RIGHT| \
-                                          LAYOUT_SIDE_TOP, \
+    @group_dt.value = 0
+    @log_text = FXText.new(sub_frame_mid, :opts => LAYOUT_FIX_WIDTH| \
+                           LAYOUT_FIX_HEIGHT, :width => 300, :height => 220)
+ 
+    # sub_frame_btm
+    sub_frame_btm = FXHorizontalFrame.new(sub_box, :opts => LAYOUT_FIX_WIDTH| \
+                                          LAYOUT_FIX_HEIGHT|LAYOUT_SIDE_RIGHT, \
                                           :width => 555, :height => 130)
-    @reserve2_table = FXTable.new(sub_frame_top, \
+    @reserve1_table = FXTable.new(sub_frame_btm, \
                                   :opts => LAYOUT_FILL|TABLE_READONLY)
-    @reserve2_table.defColumnWidth = 90
-    @reserve2_table.defRowHeight = 120
-    @reserve2_table.setTableSize(1,6)
+    @reserve1_table.defColumnWidth = 90
+    @reserve1_table.defRowHeight = 120
+    @reserve1_table.setTableSize(1,6)
     ## hide table header row and col
-    @reserve2_table.rowHeaderMode = LAYOUT_FIX_WIDTH
-    @reserve2_table.rowHeaderWidth = 0
-    @reserve2_table.columnHeaderMode = LAYOUT_FIX_HEIGHT
-    @reserve2_table.columnHeaderHeight = 0
+    @reserve1_table.rowHeaderMode = LAYOUT_FIX_WIDTH
+    @reserve1_table.rowHeaderWidth = 0
+    @reserve1_table.columnHeaderMode = LAYOUT_FIX_HEIGHT
+    @reserve1_table.columnHeaderHeight = 0
+    @reserve1_table.connect(SEL_COMMAND, method(:on_reserve1_click))
 
-    # init pieces place
-    putPiece(0, 0, @piece_giraffe_inv)
-    putPiece(0, 1, @piece_lion_inv)
-    putPiece(0, 2, @piece_elephant_inv)
-    putPiece(1, 1, @piece_chick_inv)
-    putPiece(2, 1, @piece_chick)
-    putPiece(3, 0, @piece_elephant)
-    putPiece(3, 1, @piece_lion)
-    putPiece(3, 2, @piece_giraffe)
+    @tables = {"main"=>@main_table, "reserve1"=>@reserve1_table, \
+               "reserve2"=>@reserve2_table}
 
+   # init all state
+    init_state()
   end
 
-  def putPiece(row, col, piece)
-    @main_table.setItemIcon(row, col, piece)
+  def init_state()
+    4.times do |i|
+      3.times do |j|
+        @main_table.removeItem(i, j)
+      end
+    end
+    6.times do |i|
+      @reserve1_table.removeItem(0, i)
+      @reserve2_table.removeItem(0, i)
+    end
+    @log_text.selectAll()
+    @log_text.killSelection()
+    @main_table.setItemIcon(0, 0, @piece_giraffe_inv)
+    @main_table.setItemIcon(0, 1, @piece_lion_inv)
+    @main_table.setItemIcon(0, 2, @piece_elephant_inv)
+    @main_table.setItemIcon(1, 1, @piece_chick_inv)
+    @main_table.setItemIcon(2, 1, @piece_chick)
+    @main_table.setItemIcon(3, 0, @piece_elephant)
+    @main_table.setItemIcon(3, 1, @piece_lion)
+    @main_table.setItemIcon(3, 2, @piece_giraffe)
+    @grabbed_piece = nil 
+    @grabbed_from = [nil, nil, nil]
+    @now_turn = @turn['first']
   end
 
-  def on_start_btn_click(sender, sel, event)
-    p "game start."
+  def is_grabbable(table, row, col)
+    p "is_grabbable called."
+    ret = false
+    # piece doesn't exist or you have already grabbed.
+    if table.getItemIcon(row, col) == nil || @grabbed_piece != nil
+      return false
+    end
+    
+    if @now_turn == @turn['first']
+      if (table == @tables['reserve1']) || \
+         (table == @tables['main'] && is_upright(table.getItemIcon(row, col)))
+        ret = true
+      end
+    else
+      if (table == @tables['reserve2']) || \
+         (table == @tables['main'] && not(is_upright(table.getItemIcon(row, col))))
+        ret = true
+      end
+    end
+    p "is_grabbable ret = " + ret.to_s
+    ret
   end
 
-  def on_cell_click(sender, sel, pos)
-    icon = @main_table.getItemIcon(pos.row, pos.col)
-    if icon == nil
-      p "icon doesn't exist."
-      @pieces.each do |p|
-        if @grabbed_piece == p
-          putPiece(pos.row, pos.col, p)
+  def is_upright(piece)
+    p "is_upright called."
+    p piece.to_s
+    if piece == nil
+      ret = nil
+    else
+      ret = false
+      @pieces_upright.each do |p|
+        if p == piece
+          ret = true
         end
       end
-   else
-      p "icon exists."
-      # cannot put
-      # TODO
-      #
+    end
+    p "is_upright ret = " + ret.to_s
+    ret
+  end
 
-      # get opposite side piece
-      if @grabbed_piece != nil
-        p "aleady grabbed."
-        @main_table.removeItem(pos.row, pos.col)
-        p "removed item"
-        @pieces.each do |p|
-          if @grabbed_piece == p
-            putPiece(pos.row, pos.col, p)
-          end
-        end
-        # TODO
-        # put reserver area
+  def grab_piece(from)
+    p "grab piece"
+    ret = false
+    if is_grabbable(from[0], from[1], from[2])
+      @grabbed_piece = from[0].getItemIcon(from[1], from[2])
+      @grabbed_from = from
+      from[0].removeItem(from[1], from[2])
+      ret = true
+    end
+    ret
+  end
+
+  def is_puttable(row, col) # only main_table is puttable
+    p "is_puttable called."
+    if @grabbed_from[0] == @tables['main']
+      pos_list = scan_movable(@grabbed_from[1], @grabbed_from[2], @grabbed_piece)
+      p "pos_list = " + pos_list.to_s 
+      # pos_list is empty -> grabbed piece cannot put other position.
+      if pos_list.empty?
+        @main_table.setItemIcon(@grabbed_from[1], @grabbed_from[2], @grabbed_piece)
         @grabbed_piece = nil
-        return
+        @grabbed_from = [nil, nil, nil]
+        ret = false
+      else
+        # (row,col) is included in pos_list => hit is not nil
+        hit = pos_list.delete([row,col])
+        if hit != nil
+          ret = true
+        end
+      end
+    elsif @grabbed_from[0] == @tables['reserve1'] || \
+          @grabbed_from[0] == @tables['reserve2']
+      if @main_table.getItemIcon(row, col) == nil
+        ret = true
+      end
+    else
+      # didn't grab any piece
+      ret = false
+    end
+    ret
+  end
+
+  def put_piece(row, col)
+    ret = false
+    if is_puttable(row, col)
+      p 'is_puttable = true'
+      got_piece = @main_table.getItemIcon(row, col)
+      # get opposite piece into reserve table
+      if got_piece != nil
+        go_reserve(got_piece)
+      end
+      p 'put piece.'
+      @main_table.setItemIcon(row, col, @grabbed_piece)
+      @grabbed_piece = nil
+      @grabbed_from = [nil, nil, nil]
+      ret = true
+    end
+    ret
+  end
+
+  def scan_movable(now_row, now_col, piece)
+    ret = []
+    case piece
+    when @piece_lion
+      vec = VEC_LION
+      is_up = true
+    when @piece_giraffe
+      vec = VEC_GIRAFFE
+      is_up = true
+    when @piece_elephant
+      vec = VEC_ELEPHANT
+      is_up = true
+    when @piece_cock
+      vec = VEC_COCK
+      is_up = true
+    when @piece_chick
+      vec = VEC_CHICK
+      is_up = true
+    when @piece_lion_inv
+      vec = VEC_LION_INV
+      is_up = false
+    when @piece_giraffe_inv
+      vec = VEC_GIRAFFE_INV
+      is_up = false
+    when @piece_elephant_inv
+      vec = VEC_ELEPHANT_INV
+      is_up = false
+    when @piece_cock_inv
+      vec = VEC_COCK_INV
+      is_up = false
+    when @piece_chick_inv
+      vec = VEC_CHICK_INV
+      is_up = false
+    else
+      p "Error! illegal path."
+      return ret
+    end
+
+    vec.each do |v|  
+      if (v[0] + now_row) >= 0 && (v[0] + now_row) < 4 && \
+         (v[1] + now_col) >= 0 && (v[1] + now_col) < 3
+        ret.push([v[0]+now_row, v[1]+now_col])
+      end
+    end
+    
+    new_vec = ret
+    p "new_vec = " + new_vec.to_s
+    new_vec.each do |v|
+      cur_icon = @main_table.getItemIcon(v[0], v[1])
+      if cur_icon == nil
+        next
       end
       
-      # put piece to empty pos
-      @pieces.each do |p|
-        if icon == p
-          @grabbed_piece = icon
-        end
+      if is_up == is_upright(cur_icon)
+        ret.delete(v)
       end
-     
-      @main_table.removeItem(pos.row, pos.col)
     end
+    ret
   end
 
+  def go_reserve(piece)
+    if @now_turn == @turn['first']
+      p "go reserve1"
+      table = @tables['reserve1']
+      to_inv = false
+    else
+      p "go reserve2"
+      table = @tables['reserve2']
+      to_inv = true
+    end
+    # each reserve area has 6 cells.
+    6.times do |i|
+      p "i=" + i.to_s
+      icon = table.getItemIcon(0,i)
+      if icon == nil
+        inv_piece = invert_piece(piece, to_inv)
+        p inv_piece.to_s 
+        table.setItemIcon(0, i, inv_piece)
+        break
+      end
+    end
+  end
+  
+  def invert_piece(piece, to_inv)
+    p "invert piece"
+    ret = nil
+    if to_inv
+      pieces = @pieces_upright  # search pieces
+      index = 1                 # inverted pieces index
+    else
+      pieces = @pieces_inverse  # search pieces
+      index = 0                 # inverted pieces index
+    end
+    # kinds of pieces are 5.
+    5.times do |i|
+      if pieces[i] == piece
+        ret = @pieces[index][i]
+        break
+      end
+    end
+    ret
+  end
+
+
+  def next_turn
+    p "next trun"
+    @now_turn = (@now_turn + 1) % 2
+  end
 
   def load_icon(fname)
     begin
@@ -182,6 +385,38 @@ class MainWindow < FXMainWindow
     end
   end
 
+  def doComputer(pos)
+
+  end
+
+  def on_start_btn_click(sender, sel, event)
+    p "game start."
+    init_state
+  end
+
+  def on_main_click(sender, sel, pos)
+    p 'grabbed piece = ' + @grabbed_piece.to_s
+    p 'click pos = ' + [pos.row, pos.col].to_s
+    if grab_piece([sender, pos.row, pos.col])
+      p "grab piece."
+    elsif put_piece(pos.row, pos.col)
+      p "put piece."
+      next_turn
+    else
+      p "nothing to do."
+    end
+  end
+
+  def on_reserve1_click(sender, sel, pos)
+    p "reserve1 click"
+    grab_piece([sender, pos.row, pos.col])
+  end
+
+  def on_reserve2_click(sender, sel, pos)
+    p "reserve2 click"
+    grab_piece([sender, pos.row, pos.col])
+  end
+ 
   def create
     super
     show(PLACEMENT_SCREEN)
