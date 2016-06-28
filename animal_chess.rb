@@ -33,16 +33,16 @@ class MainWindow < FXMainWindow
 
   def initialize(app)
     super(app, TITLE+VERSION, :opts => DECOR_ALL, :width => 890, :height => 500)
-    @piece_lion     = load_icon("lion.png") 
-    @piece_giraffe  = load_icon("giraffe.png") 
-    @piece_elephant = load_icon("elephant.png") 
-    @piece_cock     = load_icon("cock.png") 
-    @piece_chick    = load_icon("chick.png") 
-    @piece_lion_inv     = load_icon("lion_inv.png") 
-    @piece_giraffe_inv  = load_icon("giraffe_inv.png") 
-    @piece_elephant_inv = load_icon("elephant_inv.png") 
-    @piece_cock_inv     = load_icon("cock_inv.png") 
-    @piece_chick_inv    = load_icon("chick_inv.png") 
+    @piece_lion     = load_icon("lion.png")
+    @piece_giraffe  = load_icon("giraffe.png")
+    @piece_elephant = load_icon("elephant.png")
+    @piece_cock     = load_icon("cock.png")
+    @piece_chick    = load_icon("chick.png")
+    @piece_lion_inv     = load_icon("lion_inv.png")
+    @piece_giraffe_inv  = load_icon("giraffe_inv.png")
+    @piece_elephant_inv = load_icon("elephant_inv.png")
+    @piece_cock_inv     = load_icon("cock_inv.png")
+    @piece_chick_inv    = load_icon("chick_inv.png")
 
     @pieces_upright = [@piece_lion, @piece_giraffe, @piece_elephant, \
                       @piece_cock, @piece_chick]
@@ -134,7 +134,7 @@ class MainWindow < FXMainWindow
  
     # sub_frame_btm
     sub_frame_btm = FXHorizontalFrame.new(sub_box, :opts => LAYOUT_FIX_WIDTH| \
-                                          LAYOUT_FIX_HEIGHT|LAYOUT_SIDE_RIGHT, \
+                                          LAYOUT_FIX_HEIGHT, \
                                           :width => 555, :height => 130)
     @reserve1_table = FXTable.new(sub_frame_btm, \
                                   :opts => LAYOUT_FILL|TABLE_READONLY)
@@ -151,7 +151,32 @@ class MainWindow < FXMainWindow
     @tables = {"main"=>@main_table, "reserve1"=>@reserve1_table, \
                "reserve2"=>@reserve2_table}
 
-   # init all state
+    # out_table is needed for showing all icon to use.
+    # refer to "http://fox-toolkit.org/faq.html#ILLEGALICON"
+    out_frame = FXHorizontalFrame.new(base_frame, :opts => LAYOUT_FIX_WIDTH| \
+                                      LAYOUT_FIX_HEIGHT, :x => 870, :width=>5,\
+                                      :height => 480)
+    @out_table = FXTable.new(out_frame, :opts => LAYOUT_FILL|TABLE_READONLY)
+    @out_table.defColumnWidth = 90
+    @out_table.defRowHeight = 120
+    @out_table.setTableSize(4,3)
+    @out_table.rowHeaderMode = LAYOUT_FIX_WIDTH
+    @out_table.rowHeaderWidth = 0
+    @out_table.columnHeaderMode = LAYOUT_FIX_HEIGHT
+    @out_table.columnHeaderHeight = 0
+    # show all icon to use
+    @out_table.setItemIcon(0, 0, @piece_lion)
+    @out_table.setItemIcon(0, 1, @piece_lion_inv)
+    @out_table.setItemIcon(0, 2, @piece_giraffe)
+    @out_table.setItemIcon(1, 0, @piece_giraffe_inv)
+    @out_table.setItemIcon(1, 1, @piece_elephant)
+    @out_table.setItemIcon(1, 2, @piece_elephant_inv)
+    @out_table.setItemIcon(2, 0, @piece_cock)
+    @out_table.setItemIcon(2, 1, @piece_cock_inv)
+    @out_table.setItemIcon(2, 2, @piece_chick)
+    @out_table.setItemIcon(3, 0, @piece_chick_inv)
+    
+    # init all state
     init_state()
   end
 
@@ -175,6 +200,7 @@ class MainWindow < FXMainWindow
     @main_table.setItemIcon(3, 0, @piece_elephant)
     @main_table.setItemIcon(3, 1, @piece_lion)
     @main_table.setItemIcon(3, 2, @piece_giraffe)
+    
     @grabbed_piece = nil 
     @grabbed_from = [nil, nil, nil]
     @now_turn = @turn['first']
@@ -239,7 +265,7 @@ class MainWindow < FXMainWindow
     if @grabbed_from[0] == @tables['main']
       pos_list = scan_movable(@grabbed_from[1], @grabbed_from[2], @grabbed_piece)
       p "pos_list = " + pos_list.to_s 
-      # pos_list is empty -> grabbed piece cannot put other position.
+      # pos_list is empty, so grabbed piece cannot put other position.
       if pos_list.empty?
         @main_table.setItemIcon(@grabbed_from[1], @grabbed_from[2], @grabbed_piece)
         @grabbed_piece = nil
@@ -274,6 +300,15 @@ class MainWindow < FXMainWindow
         go_reserve(got_piece)
       end
       p 'put piece.'
+      # transform chick to cock
+      if @grabbed_from[0] == @tables['main'] && \
+         @grabbed_piece == @piece_chick && row == 0
+        @grabbed_piece = @piece_cock
+      elsif @grabbed_from[0] == @tables['main'] && \
+            @grabbed_piece == @piece_chick_inv && row == 3
+        @grabbed_piece = @piece_cock_inv
+      end
+
       @main_table.setItemIcon(row, col, @grabbed_piece)
       @grabbed_piece = nil
       @grabbed_from = [nil, nil, nil]
