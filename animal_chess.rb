@@ -32,7 +32,7 @@ class MainWindow < FXMainWindow
   VEC_CHICK_INV    = [[1,0]]
 
   def initialize(app)
-    super(app, TITLE+VERSION, :opts => DECOR_ALL, :width => 840, :height => 490)
+    super(app, TITLE+VERSION, :opts => DECOR_ALL, :width => 890, :height => 500)
     @piece_lion     = load_icon("lion.png") 
     @piece_giraffe  = load_icon("giraffe.png") 
     @piece_elephant = load_icon("elephant.png") 
@@ -53,9 +53,10 @@ class MainWindow < FXMainWindow
     @grabbed_from = [nil, nil, nil] # [table, row, col]
     @turn = {"first"=>0, "second"=>1}
     @now_turn = @turn['first']
-    
+   
+    base_frame = FXHorizontalFrame.new(self, :opts => LAYOUT_FILL) 
     # main_frame
-    main_frame = FXHorizontalFrame.new(self, :opts => LAYOUT_FILL_Y| \
+    main_frame = FXHorizontalFrame.new(base_frame, :opts => LAYOUT_FILL_Y| \
                                        LAYOUT_SIDE_LEFT|LAYOUT_FIX_WIDTH,\
                                        :width => 280)
     @main_table = FXTable.new(main_frame, :opts => LAYOUT_FILL|TABLE_READONLY)
@@ -70,10 +71,26 @@ class MainWindow < FXMainWindow
     ## event
     @main_table.connect(SEL_COMMAND, method(:on_main_click))
 
+    # mid_frame
+    mid_frame = FXVerticalFrame.new(base_frame, :opts => LAYOUT_FILL_Y| \
+                                    LAYOUT_FIX_WIDTH| LAYOUT_FIX_HEIGHT, \
+                                    :width => 30, :height => 480)
+    mid_box = FXMatrix.new(mid_frame, 2, MATRIX_BY_ROWS|LAYOUT_FILL)
+    mid_frame_top = FXHorizontalFrame.new(mid_box, :opts => LAYOUT_FIX_WIDTH| \
+                                          LAYOUT_FIX_HEIGHT, :width => 25, \
+                                          :height => 410)
+    mid_frame_btm = FXHorizontalFrame.new(mid_box, :opts => LAYOUT_FIX_WIDTH| \
+                                          LAYOUT_FIX_HEIGHT, :width => 25, \
+                                          :height => 50)
+    @turn_light2 = FXText.new(mid_frame_top, :opts => LAYOUT_FILL_X| \
+                              TEXT_READONLY)
+    @turn_light1 = FXText.new(mid_frame_btm, :opts => LAYOUT_FILL_X| \
+                              TEXT_READONLY)
+
     # sub_frame
-    sub_frame = FXVerticalFrame.new(self, :opts => LAYOUT_FIX_WIDTH| \
+    sub_frame = FXVerticalFrame.new(base_frame, :opts => LAYOUT_FIX_WIDTH| \
                                     LAYOUT_FIX_HEIGHT|LAYOUT_SIDE_RIGHT, \
-                                    :x => 280, :y => 0, \
+                                    :x => 300, :y => 0, \
                                     :width => 555, :height => 480)
     sub_box = FXMatrix.new(sub_frame, 3, MATRIX_BY_ROWS|LAYOUT_FILL)
 
@@ -161,6 +178,8 @@ class MainWindow < FXMainWindow
     @grabbed_piece = nil 
     @grabbed_from = [nil, nil, nil]
     @now_turn = @turn['first']
+    @turn_light1.backColor = FXRGB(255,0,0)
+    @turn_light2.backColor = FXRGB(255,255,255)
   end
 
   def is_grabbable(table, row, col)
@@ -370,6 +389,14 @@ class MainWindow < FXMainWindow
   def next_turn
     p "next trun"
     @now_turn = (@now_turn + 1) % 2
+
+    if @turn_light1.backColor == FXRGB(255,0,0)
+      @turn_light1.backColor = FXRGB(255,255,255)
+      @turn_light2.backColor = FXRGB(255,0,0)
+    else
+      @turn_light1.backColor = FXRGB(255,0,0)
+      @turn_light2.backColor = FXRGB(255,255,255)
+    end
   end
 
   def load_icon(fname)
