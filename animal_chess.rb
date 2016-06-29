@@ -130,7 +130,7 @@ class MainWindow < FXMainWindow
     FXRadioButton.new(group, "Comp vs Comp", @group_dt, FXDataTarget::ID_OPTION+3)
     @group_dt.value = 0
     @log_text = FXText.new(sub_frame_mid, :opts => LAYOUT_FIX_WIDTH| \
-                           LAYOUT_FIX_HEIGHT, :width => 300, :height => 220)
+                           LAYOUT_FIX_HEIGHT, :width => 300, :height => 200)
  
     # sub_frame_btm
     sub_frame_btm = FXHorizontalFrame.new(sub_box, :opts => LAYOUT_FIX_WIDTH| \
@@ -190,8 +190,6 @@ class MainWindow < FXMainWindow
       @reserve1_table.removeItem(0, i)
       @reserve2_table.removeItem(0, i)
     end
-    @log_text.selectAll()
-    @log_text.killSelection()
     @main_table.setItemIcon(0, 0, @piece_giraffe_inv)
     @main_table.setItemIcon(0, 1, @piece_lion_inv)
     @main_table.setItemIcon(0, 2, @piece_elephant_inv)
@@ -200,12 +198,13 @@ class MainWindow < FXMainWindow
     @main_table.setItemIcon(3, 0, @piece_elephant)
     @main_table.setItemIcon(3, 1, @piece_lion)
     @main_table.setItemIcon(3, 2, @piece_giraffe)
-    
+    @log_text.removeText(0, @log_text.length)
     @grabbed_piece = nil 
     @grabbed_from = [nil, nil, nil]
     @now_turn = @turn['first']
     @turn_light1.backColor = FXRGB(255,0,0)
     @turn_light2.backColor = FXRGB(255,255,255)
+    @game_is_end = false
   end
 
   def is_grabbable(table, row, col)
@@ -262,17 +261,20 @@ class MainWindow < FXMainWindow
 
   def is_puttable(row, col) # only main_table is puttable
     p "is_puttable called."
+    ret = false
     if @grabbed_from[0] == @tables['main']
-      pos_list = scan_movable(@grabbed_from[1], @grabbed_from[2], @grabbed_piece)
+      pos_list, got_list = scan_movable(@grabbed_from[1], @grabbed_from[2], \
+                                        @grabbed_piece)
       p "pos_list = " + pos_list.to_s 
-      # pos_list is empty, so grabbed piece cannot put other position.
+      p "got_list = " + got_list.to_s 
+      # If pos_list is empty, grabbed piece cannot move.
       if pos_list.empty?
         @main_table.setItemIcon(@grabbed_from[1], @grabbed_from[2], @grabbed_piece)
         @grabbed_piece = nil
         @grabbed_from = [nil, nil, nil]
         ret = false
       else
-        # (row,col) is included in pos_list => hit is not nil
+        # If (row,col) is included in pos_list, hit is not nil
         hit = pos_list.delete([row,col])
         if hit != nil
           ret = true
@@ -297,7 +299,12 @@ class MainWindow < FXMainWindow
       got_piece = @main_table.getItemIcon(row, col)
       # get opposite piece into reserve table
       if got_piece != nil
-        go_reserve(got_piece)
+        # catch the lion
+        if got_piece == @piece_lion || got_piece == @piece_lion_inv
+          game_end
+        else
+          go_reserve(got_piece)
+        end
       end
       p 'put piece.'
       # transform chick to cock
@@ -318,7 +325,8 @@ class MainWindow < FXMainWindow
   end
 
   def scan_movable(now_row, now_col, piece)
-    ret = []
+    pos_list = []
+    got_piece_list = []
     case piece
     when @piece_lion
       vec = VEC_LION
@@ -358,23 +366,87 @@ class MainWindow < FXMainWindow
     vec.each do |v|  
       if (v[0] + now_row) >= 0 && (v[0] + now_row) < 4 && \
          (v[1] + now_col) >= 0 && (v[1] + now_col) < 3
-        ret.push([v[0]+now_row, v[1]+now_col])
+        pos_list.push([v[0]+now_row, v[1]+now_col])
       end
     end
     
-    new_vec = ret
-    p "new_vec = " + new_vec.to_s
-    new_vec.each do |v|
-      cur_icon = @main_table.getItemIcon(v[0], v[1])
+    del_pos_list = []
+    pos_list.each_with_index do |pos, index|
+      p "pos, index = " + pos.to_s + ", " + index.to_s
+      cur_icon = @main_table.getItemIcon(pos[0], pos[1])
+      got_piece_list.push(cur_icon)
       if cur_icon == nil
         next
       end
-      
+      # cannot put on the piece of my side.
       if is_up == is_upright(cur_icon)
-        ret.delete(v)
+        p "pos_list = " + pos_list.to_s
+        p "got_list = " + got_piece_list.to_s
+        del_pos_list.push(pos)
+        got_piece_list.delete_at(got_piece_list.length - 1)
       end
     end
-    ret
+
+    del_pos_list.each do |pos|
+      pos_list.delete(pos)
+    end
+    
+    return pos_list, got_piece_list
+  end
+
+  # full_scan_movable
+  # Scan the puttable postions of all pieces specified by "is_up" with got pieces
+  #
+  # is_up : true  => all uprihgt piece
+  #         false => all inverse pieces
+  #
+  # ret = move_piece_list, pos_list, got_piece_list,
+  #   move_pieces : move piece list [[from main_table],[from reserve_table]]
+  #   pos_list    : move pos list [[from main_table],[from reserve_table]]
+  #   got_pieces  : got piece list [[from main_table],[from reserve_table]]
+  def full_scan_movable(is_up)
+    main_move_pieces = []
+    main_pos_list    = []
+    main_got_pieces  = []
+    reserve_move_pieces = []
+    reserve_pos_list    = []
+    reserve_got_pieces  = []
+    empty_pos_list = []
+    # scan main_table
+    4.times do |row|
+      3.times do |col|
+        icon = @main_table.getItemIcon(row, col)
+        if icon == nil
+          empty_pos_list.push([row,col])
+          next
+        end
+
+        if is_up == is_upright(icon)
+          main_move_pieces.push(icon)
+          temp_pos_list, temp_got_pieces = scan_movable(row, col, icon)
+          main_pos_list.push(temp_pos_list)
+          main_got_pieces.push(temp_got_pieces)
+        end
+      end
+    end
+
+    # scan reserve_table
+    if is_up
+      reserve_table = @tables['reserve1']
+    else
+      reserve_table = @tables['reserve2']
+    end
+    
+    6.times do |i|
+      icon = reserve_table.getItemIcon(0, i)
+      reserve_move_pieces.push(icon)
+      reserve_pos_list.push(empty_pos_list)
+      reserve_got_pieces.push(nil)
+    end
+    
+    return [main_move_pieces, reserve_move_pieces], \
+           [main_pos_list, reserve_pos_list], \
+           [main_got_pieces, reserve_got_pieces]
   end
 
   def go_reserve(piece)
@@ -420,6 +492,10 @@ class MainWindow < FXMainWindow
     ret
   end
 
+  def game_end
+    @log_text.appendText("Game is end.\n")
+    @game_is_end = true
+  end
 
   def next_turn
     p "next trun"
@@ -448,6 +524,9 @@ class MainWindow < FXMainWindow
   end
 
   def doComputer(pos)
+    if @game_is_end
+      return
+    end
 
   end
 
@@ -457,6 +536,9 @@ class MainWindow < FXMainWindow
   end
 
   def on_main_click(sender, sel, pos)
+    if @game_is_end
+      return
+    end
     p 'grabbed piece = ' + @grabbed_piece.to_s
     p 'click pos = ' + [pos.row, pos.col].to_s
     if grab_piece([sender, pos.row, pos.col])
