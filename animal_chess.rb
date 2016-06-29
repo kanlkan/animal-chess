@@ -411,7 +411,7 @@ class MainWindow < FXMainWindow
     reserve_move_pieces = []
     reserve_pos_list    = []
     reserve_got_pieces  = []
-    empty_pos_list = []
+    empty_pos_list = []  # These positions doesn't have any piece.
     # scan main_table
     4.times do |row|
       3.times do |col|
@@ -424,8 +424,8 @@ class MainWindow < FXMainWindow
         if is_up == is_upright(icon)
           main_move_pieces.push(icon)
           temp_pos_list, temp_got_pieces = scan_movable(row, col, icon)
-          main_pos_list.push(temp_pos_list)
-          main_got_pieces.push(temp_got_pieces)
+          main_pos_list += temp_pos_list
+          main_got_pieces += temp_got_pieces
         end
       end
     end
@@ -440,7 +440,7 @@ class MainWindow < FXMainWindow
     6.times do |i|
       icon = reserve_table.getItemIcon(0, i)
       reserve_move_pieces.push(icon)
-      reserve_pos_list.push(empty_pos_list)
+      reserve_pos_list += empty_pos_list
       reserve_got_pieces.push(nil)
     end
     
@@ -508,6 +508,45 @@ class MainWindow < FXMainWindow
       @turn_light1.backColor = FXRGB(255,0,0)
       @turn_light2.backColor = FXRGB(255,255,255)
     end
+
+  end
+
+  # judge wheter "Try" succeeded or not before next turn start.
+  def judge_try
+    on_try = false
+    try_success = false
+    try_pos = []
+
+    # scan lion opposite side
+    if @now_turn == @turn['first']
+      piece_lion = @piece_lion
+      row = 0
+      is_upright = false
+    else
+      piece_lion = @piece_lion_inv
+      row = 3
+      is_upright = true
+    end
+ 
+    3.times do |i|
+      icon = @main_table.getItemIcon(row, i)
+      if icon == piece_lion
+        on_try = true
+        try_pos = [row, i]
+      end
+    end
+   
+    if on_try
+      move_pieces, pos_list, got_pieces = full_scan_movable(is_upright)
+      p "pos_list[0] = " + pos_list[0].to_s
+      p "try_pos = " + try_pos.to_s
+      hit = pos_list[0].delete(try_pos)
+      if hit == nil
+        try_success = true
+      end
+    end
+
+     return on_try, try_success
   end
 
   def load_icon(fname)
@@ -545,6 +584,16 @@ class MainWindow < FXMainWindow
       p "grab piece."
     elsif put_piece(pos.row, pos.col)
       p "put piece."
+      on_try, try_success = judge_try
+      if on_try && try_success
+        @game_is_end = true
+        @log_text.appendText("'Try' succeeded.")
+        @log_text.appendText("Game is end.")
+      elsif on_try && !try_success
+        @game_is_end = true
+        @log_text.appendText("'Try' failed.\n")
+        @log_text.appendText("Game is end.\n")
+      end
       next_turn
     else
       p "nothing to do."
