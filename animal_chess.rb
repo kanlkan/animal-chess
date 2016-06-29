@@ -584,11 +584,14 @@ class MainWindow < FXMainWindow
       p "grab piece."
     elsif put_piece(pos.row, pos.col)
       p "put piece."
+      if @game_is_end
+        return
+      end
       on_try, try_success = judge_try
       if on_try && try_success
         @game_is_end = true
-        @log_text.appendText("'Try' succeeded.")
-        @log_text.appendText("Game is end.")
+        @log_text.appendText("'Try' succeeded.\n")
+        @log_text.appendText("Game is end.\n")
       elsif on_try && !try_success
         @game_is_end = true
         @log_text.appendText("'Try' failed.\n")
