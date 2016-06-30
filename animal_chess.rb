@@ -414,10 +414,12 @@ class MainWindow < FXMainWindow
         end
 
         if is_up == is_upright(icon)
-          main_move_pieces.push([icon, row, col])
           temp_pos_list, temp_got_pieces = scan_movable(row, col, icon)
-          main_pos_list.push(temp_pos_list)
-          main_got_pieces.push(temp_got_pieces)
+          if temp_pos_list.empty? == false
+            main_move_pieces.push([icon, row, col])
+            main_pos_list.push(temp_pos_list)
+            main_got_pieces.push(temp_got_pieces)
+          end
         end
       end
     end
@@ -646,7 +648,7 @@ class MainWindow < FXMainWindow
   def on_start_btn_click(sender, sel, event)
     @log_text.appendText("Game start.\n")
     init_state
-    if @group_dt.value == 2
+    if @group_dt.value == 2 || @group_dt.value == 3
       do_computer()
     end
   end
