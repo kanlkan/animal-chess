@@ -208,7 +208,6 @@ class MainWindow < FXMainWindow
   end
 
   def is_grabbable(table, row, col)
-    p "is_grabbable called."
     ret = false
     # piece doesn't exist or you have already grabbed.
     if table.getItemIcon(row, col) == nil || @grabbed_piece != nil
@@ -226,12 +225,10 @@ class MainWindow < FXMainWindow
         ret = true
       end
     end
-    p "is_grabbable ret = " + ret.to_s
     ret
   end
 
   def is_upright(piece)
-    p "is_upright called."
     p piece.to_s
     if piece == nil
       ret = nil
@@ -243,12 +240,10 @@ class MainWindow < FXMainWindow
         end
       end
     end
-    p "is_upright ret = " + ret.to_s
     ret
   end
 
   def grab_piece(from)
-    p "grab piece"
     ret = false
     if is_grabbable(from[0], from[1], from[2])
       @grabbed_piece = from[0].getItemIcon(from[1], from[2])
@@ -260,7 +255,6 @@ class MainWindow < FXMainWindow
   end
 
   def is_puttable(row, col) # only main_table is puttable
-    p "is_puttable called."
     ret = false
     if @grabbed_from[0] == @tables['main']
       pos_list, got_list = scan_movable(@grabbed_from[1], @grabbed_from[2], \
@@ -274,8 +268,7 @@ class MainWindow < FXMainWindow
         @grabbed_from = [nil, nil, nil]
         ret = false
       else
-        # If (row,col) is included in pos_list, hit is not nil
-        hit = pos_list.delete([row,col])
+        hit = pos_list.index([row,col])
         if hit != nil
           ret = true
         end
@@ -295,7 +288,6 @@ class MainWindow < FXMainWindow
   def put_piece(row, col)
     ret = false
     if is_puttable(row, col)
-      p 'is_puttable = true'
       got_piece = @main_table.getItemIcon(row, col)
       # get opposite piece into reserve table
       if got_piece != nil
@@ -306,7 +298,6 @@ class MainWindow < FXMainWindow
           go_reserve(got_piece)
         end
       end
-      p 'put piece.'
       # transform chick to cock
       if @grabbed_from[0] == @tables['main'] && \
          @grabbed_piece == @piece_chick && row == 0
@@ -401,7 +392,8 @@ class MainWindow < FXMainWindow
   #         false => all inverse pieces
   #
   # ret = move_piece_list, pos_list, got_piece_list,
-  #   move_pieces : move piece list [[from main_table],[from reserve_table]]
+  #   move_pieces : [move piece, current row, current pos]
+  #                 [[from main_table],[from reserve_table]]
   #   pos_list    : move pos list [[from main_table],[from reserve_table]]
   #   got_pieces  : got piece list [[from main_table],[from reserve_table]]
   def full_scan_movable(is_up)
@@ -411,7 +403,7 @@ class MainWindow < FXMainWindow
     reserve_move_pieces = []
     reserve_pos_list    = []
     reserve_got_pieces  = []
-    empty_pos_list = []  # These positions doesn't have any piece.
+    empty_pos_list = []  # These positions doesn't have any pieces.
     # scan main_table
     4.times do |row|
       3.times do |col|
@@ -422,10 +414,10 @@ class MainWindow < FXMainWindow
         end
 
         if is_up == is_upright(icon)
-          main_move_pieces.push(icon)
+          main_move_pieces.push([icon, row, col])
           temp_pos_list, temp_got_pieces = scan_movable(row, col, icon)
-          main_pos_list += temp_pos_list
-          main_got_pieces += temp_got_pieces
+          main_pos_list.push(temp_pos_list)
+          main_got_pieces.push(temp_got_pieces)
         end
       end
     end
@@ -439,9 +431,11 @@ class MainWindow < FXMainWindow
     
     6.times do |i|
       icon = reserve_table.getItemIcon(0, i)
-      reserve_move_pieces.push(icon)
-      reserve_pos_list += empty_pos_list
-      reserve_got_pieces.push(nil)
+      if icon != nil
+        reserve_move_pieces.push([icon, 0, i])
+        reserve_pos_list.push(empty_pos_list)
+        reserve_got_pieces.push(nil)
+      end
     end
     
     return [main_move_pieces, reserve_move_pieces], \
@@ -451,20 +445,22 @@ class MainWindow < FXMainWindow
 
   def go_reserve(piece)
     if @now_turn == @turn['first']
-      p "go reserve1"
       table = @tables['reserve1']
       to_inv = false
     else
-      p "go reserve2"
       table = @tables['reserve2']
       to_inv = true
     end
     # each reserve area has 6 cells.
     6.times do |i|
-      p "i=" + i.to_s
       icon = table.getItemIcon(0,i)
       if icon == nil
         inv_piece = invert_piece(piece, to_inv)
+        if inv_piece == @piece_cock
+          inv_piece = @piece_chick
+        elsif inv_piece == @piece_cock_inv
+          inv_piece = @piece_chick_inv
+        end
         p inv_piece.to_s 
         table.setItemIcon(0, i, inv_piece)
         break
@@ -473,7 +469,6 @@ class MainWindow < FXMainWindow
   end
   
   def invert_piece(piece, to_inv)
-    p "invert piece"
     ret = nil
     if to_inv
       pieces = @pieces_upright  # search pieces
@@ -498,7 +493,6 @@ class MainWindow < FXMainWindow
   end
 
   def next_turn
-    p "next trun"
     @now_turn = (@now_turn + 1) % 2
 
     if @turn_light1.backColor == FXRGB(255,0,0)
@@ -538,9 +532,13 @@ class MainWindow < FXMainWindow
    
     if on_try
       move_pieces, pos_list, got_pieces = full_scan_movable(is_upright)
-      p "pos_list[0] = " + pos_list[0].to_s
-      p "try_pos = " + try_pos.to_s
-      hit = pos_list[0].delete(try_pos)
+      hit = nil
+      pos_list[0].each do |list|
+        hit = list.index(try_pos)
+        if hit
+          break
+        end
+      end
       if hit == nil
         try_success = true
       end
@@ -562,28 +560,104 @@ class MainWindow < FXMainWindow
     end
   end
 
-  def doComputer(pos)
+  def do_computer()
     if @game_is_end
       return
     end
 
+    if @now_turn == @turn['first']
+      is_upright = true
+    else
+      is_upright = false
+    end
+    move_pieces, pos_list, got_pieces = full_scan_movable(is_upright)
+    p "move_pieces = " + move_pieces.to_s
+    p "pos_list = " + pos_list.to_s
+    p "got_pieces = " + got_pieces.to_s
+    from_list, to_list = decide_next_move(move_pieces, pos_list, got_pieces)
+    grab_piece(from_list)
+    put_piece(to_list[0], to_list[1])
+
+    if @game_is_end
+      return
+    end
+    on_try, try_success = judge_try
+    if on_try && try_success
+      @game_is_end = true
+      @log_text.appendText("'Try' succeeded.\n")
+      @log_text.appendText("Game is end.\n")
+    elsif on_try && !try_success
+      @game_is_end = true
+      @log_text.appendText("'Try' failed.\n")
+      @log_text.appendText("Game is end.\n")
+    end
+    next_turn
+    if @group_dt.value == 3
+      do_computer()
+    end
+  end
+
+  def decide_next_move(move_pieces, pos_list, got_pieces)
+    from = []
+    to = []
+    
+    #### insert computer AI here. ####
+
+    if @now_turn == @turn['first']
+      piece_lion = @piece_lion_inv
+    else
+      piece_lion = @piece_lion
+    end
+    
+    lion_index = got_pieces[0].index(piece_lion)
+    if lion_index != nil
+      # if computer can catch Lion, do so.
+      from = move_pieces[lion_index]
+      to = pos_list[0][lion_index]
+    else
+      # next move randomly
+      table_index = rand(2)
+      if move_pieces[table_index].empty?
+        table_index = 0
+      end
+      p "table_index = " + table_index.to_s
+      move_piece_index = rand(move_pieces[table_index].length)
+      p "move_piece_index = " + move_piece_index.to_s
+      pos_index = rand(pos_list[table_index][move_piece_index].length)
+      p "pos_index = " + pos_index.to_s
+      if table_index == 0
+        table = @tables['main']
+      elsif @now_turn == @turn['first']
+        table = @tables['reserve1']
+      else
+        table = @tables['reserve2']
+      end
+      from = [table] +  move_pieces[table_index][move_piece_index].slice(1,3)
+      to = pos_list[table_index][move_piece_index][pos_index]
+    end
+
+    ##################################
+
+    p "from = " + from.to_s
+    p "to = " + to.to_s
+    return from, to
   end
 
   def on_start_btn_click(sender, sel, event)
-    p "game start."
+    @log_text.appendText("Game start.\n")
     init_state
+    if @group_dt.value == 2
+      do_computer()
+    end
   end
 
   def on_main_click(sender, sel, pos)
     if @game_is_end
       return
     end
-    p 'grabbed piece = ' + @grabbed_piece.to_s
     p 'click pos = ' + [pos.row, pos.col].to_s
     if grab_piece([sender, pos.row, pos.col])
-      p "grab piece."
     elsif put_piece(pos.row, pos.col)
-      p "put piece."
       if @game_is_end
         return
       end
@@ -598,18 +672,19 @@ class MainWindow < FXMainWindow
         @log_text.appendText("Game is end.\n")
       end
       next_turn
+      if @group_dt.value == 1 || @group_dt.value == 2
+        do_computer()
+      end  
     else
       p "nothing to do."
     end
   end
 
   def on_reserve1_click(sender, sel, pos)
-    p "reserve1 click"
     grab_piece([sender, pos.row, pos.col])
   end
 
   def on_reserve2_click(sender, sel, pos)
-    p "reserve2 click"
     grab_piece([sender, pos.row, pos.col])
   end
  
