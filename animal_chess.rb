@@ -19,7 +19,7 @@ include Fox
 class MainWindow < FXMainWindow
 
   TITLE = "Animal Chess"
-  VERSION = " 0.9.0"
+  VERSION = " 1.0.0"
   VEC_LION         = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]
   VEC_LION_INV     = VEC_LION
   VEC_GIRAFFE      = [[-1,0],[0,-1],[0,1],[1,0]]
