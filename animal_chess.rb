@@ -611,11 +611,19 @@ class MainWindow < FXMainWindow
       piece_lion = @piece_lion
     end
     
-    lion_index = got_pieces[0].index(piece_lion)
+    lion_index = nil
+    pos_index = nil
+    got_pieces[0].each_with_index do |list, i|
+      pos_index = list.index(piece_lion)
+      if pos_index != nil
+        lion_index = i
+        break
+      end
+    end
     if lion_index != nil
       # if computer can catch Lion, do so.
-      from = move_pieces[lion_index]
-      to = pos_list[0][lion_index]
+      from = [@tables['main']] + move_pieces[0][lion_index].slice(1,3)
+      to = pos_list[0][lion_index][pos_index]
     else
       # next move randomly
       table_index = rand(2)
